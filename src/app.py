@@ -44,7 +44,7 @@ setup_commands(app)
 
 
 
-jwt=JWTManager()
+jwt=JWTManager(app)
 
 # Add all endpoints form the API with a "api" prefix
 app.register_blueprint(api, url_prefix='/api')
@@ -68,9 +68,37 @@ def iniciar_sesion():
     print(request_body)
     user= User.query.filter_by(email=request_body['email']).first()
     if user:
-        return "todo ok",200
-    else:
+        if user.password == request_body['password']:
+            tiempo= datetime.timedelta(minutes=1)
+            acceso = create_access_token(identity=user.email, expires_delta=tiempo)
+            return jsonify({
+                "mensaje": "inicio de sesión correcto",
+                "duracion": tiempo.total_seconds(),
+                "token": acceso
+            }),200
+        else:
+            return "error,revisa la contraseña",404
+    else:        
         return "user no existe",400
+
+@app.route('/singup', methods=['POST'])
+def singup():
+    request_body = request.get_json()#recogemos la información en la variable request_body
+    
+    if not (request_body['email'] and request_body['password'] and request_body['repeat_password']):#comprobamos que todos los valores esten introducidos
+        return "falta alguna información", 400
+    if not (request_body['password']== request_body['repeat_password']):#comprobamos que la contraseña y la repetición de la contraseña coinciden
+        return 'las contraseñas no coinciden',500
+
+
+    user =User(email=request_body['email'],password=request_body['password'], is_active=True)#creamos la variable user donde relacionamos los datos del formulario con la tabla User
+    if user: #si lo anterior ha ido bien
+        db.session.add(user)#guardamos los cambios
+        db.session.commit()#confirmamos los cambios realizados
+        token=create_access_token(identity= user.id, expires_delta=datetime.timedelta(minutes=1)) #creamos el toke nada más hacer el registro
+        return jsonify({'token': token}), 201 #enviamos el token para que inicie sesión al registrarse
+    return "user no existe"
+
 
 
 # any other endpoint will try to serve it like a static file
